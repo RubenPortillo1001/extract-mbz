@@ -171,13 +171,18 @@ if not os.path.exists(os.path.join(source, 'moodle_backup.xml')):
 
 pattern = re.compile(r'^\s*(.+\.(?:pdf|png|gif|jpg|jpeg|zip|rtf|sav|mp3|mht|por|xlsx?|docx?|pptx?))\s*$', flags=re.IGNORECASE)
 
+def xml_text(root, tag, default=''):
+    el = root.find(tag)
+    return el.text if el is not None and el.text is not None else default
+
 # Get Course Info
 courseTree = etree.parse(os.path.join(source, 'course', 'course.xml'))
-shortname = courseTree.getroot().find('shortname').text
-fullname = courseTree.getroot().find('fullname').text
-crn = courseTree.getroot().find('idnumber').text
-format = courseTree.getroot().find('format').text
-topics = courseTree.getroot().find('numsections').text
+courseRoot = courseTree.getroot()
+shortname = xml_text(courseRoot, 'shortname', 'course')
+fullname  = xml_text(courseRoot, 'fullname',  shortname)
+crn       = xml_text(courseRoot, 'idnumber',  '')
+format    = xml_text(courseRoot, 'format',    'unknown')
+topics    = xml_text(courseRoot, 'numsections', 'N/A')
 
 destinationRoot = os.path.join(str(source), slugify(str(shortname)))
 createOutputDirectories(destinationRoot)
