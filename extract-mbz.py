@@ -257,6 +257,11 @@ print("Markdown file: {0}".format(mdFileSpec))
 
 print("===\nProcessing course sections...")
 
+# All files (resources, pages, folders) go into one flat directory
+files_dir = os.path.join(destinationRoot, "materiales")
+if not os.path.exists(files_dir):
+    os.makedirs(files_dir)
+
 itemCount = 0
 
 for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("section"):
@@ -286,8 +291,6 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
     else:
         section_sequence = []
 
-    section_file_dir = os.path.join(destinationRoot, "section_%03d" % itemCount)
-
     for item in section_sequence:
         item_xpath = ".//*[moduleid='%s']" % item
 
@@ -310,13 +313,11 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
                 file_id = f.find("id").text
                 filename = files.find("file[@id='%s']/filename" % file_id).text
 
-                if filename != "." and filename != "":
-                    if not os.path.exists(section_file_dir):
-                        os.makedirs(section_file_dir)
+                if filename and filename != "." and filename != "":
                     filename = make_slugified_filename(str(filename))
                     contenthash = files.find("file[@id='%s']/contenthash" % file_id).text
 
-                    destination = add_unique_postfix(os.path.join(section_file_dir, filename))
+                    destination = add_unique_postfix(os.path.join(files_dir, filename))
                     src_file = os.path.join(source, "files", contenthash[:2], contenthash)
 
                     try:
@@ -326,10 +327,10 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
                         continue
 
                     dest_basename = os.path.basename(destination)
-                    file_url = "./section_%03d/%s" % (itemCount, dest_basename)
+                    file_url = "./materiales/%s" % dest_basename
                     orig_title = item_title
                     item_title = "<a href='%s'>%s</a>" % (file_url, item_title)
-                    md_item = "- **[Archivo]** %s (`%s`)" % (orig_title, dest_basename)
+                    md_item = "- **[Archivo]** [%s](%s)" % (orig_title, file_url)
 
         elif modulename == "url":
             urlTree = etree.parse(os.path.join(source, 'activities', 'url_%s' % item, 'url.xml'))
@@ -345,13 +346,9 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
             page_tree = etree.parse(os.path.join(source, page_xml_file, 'page.xml'))
             page_content = page_tree.find("page/content").text or ''
 
-            if not os.path.exists(section_file_dir):
-                os.makedirs(section_file_dir)
-
             page_title_safe = page_title.replace("/", "-").replace(":", "-")
             pageFilename = make_slugified_filename("%s.html" % str(page_title_safe))
-            pageFilePath = add_unique_postfix(os.path.join(section_file_dir, pageFilename))
-            # Use the actual saved filename in the URL (handles conflicts)
+            pageFilePath = add_unique_postfix(os.path.join(files_dir, pageFilename))
             pageFilename = os.path.basename(pageFilePath)
 
             try:
@@ -363,16 +360,13 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
             except Exception as e:
                 print("  WARNING: could not write page %s: %s" % (page_title, e))
 
-            page_url = "./section_%03d/%s" % (itemCount, pageFilename)
+            page_url = "./materiales/%s" % pageFilename
             item_title = "<a href='%s'>%s</a>" % (page_url, page_title)
             md_item = "- **[Página]** %s\n\n%s\n" % (page_title, strip_html(page_content))
 
         elif modulename == "folder":
             folder_title = activities.find(item_xpath).find("title").text
             folder_xml_file = activities.find(item_xpath).find("directory").text
-
-            folder_tree = etree.parse(os.path.join(source, folder_xml_file, 'folder.xml'))
-            folder_desc = folder_tree.find("folder/intro").text
 
             resourceTree = etree.parse(os.path.join(source, folder_xml_file, 'inforef.xml'))
             file_listing = resourceTree.findall("fileref/file")
@@ -384,13 +378,11 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
                 file_id = f.find("id").text
                 original_filename = files.find("file[@id='%s']/filename" % file_id).text
 
-                if original_filename != "." and original_filename != "":
-                    if not os.path.exists(section_file_dir):
-                        os.makedirs(section_file_dir)
+                if original_filename and original_filename != "." and original_filename != "":
                     filename = make_slugified_filename(original_filename)
                     contenthash = files.find("file[@id='%s']/contenthash" % file_id).text
 
-                    destination = add_unique_postfix(os.path.join(section_file_dir, filename))
+                    destination = add_unique_postfix(os.path.join(files_dir, filename))
                     src_file = os.path.join(source, "files", contenthash[:2], contenthash)
 
                     try:
@@ -400,12 +392,12 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
                         continue
 
                     dest_basename = os.path.basename(destination)
-                    file_url = "./section_%03d/%s" % (itemCount, dest_basename)
+                    file_url = "./materiales/%s" % dest_basename
                     folder_html += "<li><a href='%s'>%s</a></li>" % (file_url, original_filename)
-                    md_folder_files.append("  - `%s`" % original_filename)
+                    md_folder_files.append("  - [%s](%s)" % (original_filename, file_url))
 
             folder_html += "</ul></div>"
-            item_title = "%s (folder)%s" % (folder_title, folder_html)
+            item_title = "%s (carpeta)%s" % (folder_title, folder_html)
             md_item = "- **[Carpeta]** %s\n%s" % (folder_title, "\n".join(md_folder_files))
 
         else:
@@ -498,7 +490,8 @@ if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
         print("Creating symlink " + symLink + " -> " + destinationRoot)
         os.symlink(destinationRoot, symLink)
 
-# clean up (remove) subdirectories not used
+# clean up empty subdirectories
 for subdir in ("forum", "legacy", "assignment", "user", "resource", "course"):
-    if not os.listdir(os.path.join(destinationRoot, subdir)):
-        os.rmdir(os.path.join(destinationRoot, subdir))
+    subdir_path = os.path.join(destinationRoot, subdir)
+    if os.path.exists(subdir_path) and not os.listdir(subdir_path):
+        os.rmdir(subdir_path)
