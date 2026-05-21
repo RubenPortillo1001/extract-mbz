@@ -29,6 +29,7 @@
 
 import xml.etree.ElementTree as etree
 import fnmatch
+import html as html_module
 import shutil
 import os
 import re
@@ -38,6 +39,21 @@ import sys
 from slugify import slugify
 import zipfile
 import tarfile
+
+
+def strip_html(text):
+    """Convert HTML to plain readable text for Markdown output."""
+    if not text:
+        return ''
+    text = html_module.unescape(text)
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<li\s*>', '\n- ', text, flags=re.IGNORECASE)
+    text = re.sub(r'<p\s*[^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<h[1-6][^>]*>', '\n### ', text, flags=re.IGNORECASE)
+    text = re.sub(r'</h[1-6]>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 # Functions ###########################################################################
 
@@ -216,8 +232,12 @@ html_header = '''
 # Process each section
 webFilename = "%s.html" % slugify(str(shortname))
 webFileSpec = os.path.join(destinationRoot, webFilename)
+mdFilename  = "%s.md"   % slugify(str(shortname))
+mdFileSpec  = os.path.join(destinationRoot, mdFilename)
 
 urlfile = open(webFileSpec, "w", encoding="utf-8")
+mdfile  = open(mdFileSpec,  "w", encoding="utf-8")
+
 if urlfile.mode == 'w':
     urlfile.write("<html>%s<body><blockquote>" % html_header)
     urlfile.write("<h3>Moodle Backup Extract..." + timeStamp + "</h3>")
@@ -226,6 +246,10 @@ if urlfile.mode == 'w':
     print("Course Sections: {0}".format(webFileSpec))
 else:
     print("Error: unable to open {0} for writing".format(webFileSpec))
+
+mdfile.write("# %s\n\n" % fullname)
+mdfile.write("**Curso:** %s  \n**Formato:** %s  \n**Extraído:** %s\n\n---\n\n" % (shortname, format, timeStamp))
+print("Markdown file: {0}".format(mdFileSpec))
 
 print("===\nProcessing course sections...")
 
@@ -243,12 +267,14 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
             section_title = "Section %s" % section_title
 
     HTMLOutput = "<h2 class='mbn'>%s</h2>" % section_title
+    MDOutput   = "## %s\n\n" % section_title
 
     section_file_root = etree.parse(os.path.join(source, s.find("directory").text, "section.xml"))
     section_summary = section_file_root.find("summary").text
     if section_summary:
         section_summary = section_summary.replace("@@PLUGINFILE@@", "./course")
         HTMLOutput += "<p>%s</p>" % section_summary
+        MDOutput   += "%s\n\n" % strip_html(section_summary)
     HTMLOutput += "<ul class='man'>"
 
     if section_file_root.find("sequence").text:
@@ -268,6 +294,8 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
             continue
 
         print("Found %s (item #: %s) titled %s" % (modulename, item, item_title))
+
+        md_item = ""
 
         if modulename == "resource":
             resourceTree = etree.parse(os.path.join(source, 'activities', 'resource_%s' % item, 'inforef.xml'))
@@ -291,12 +319,14 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
 
                     file_url = "./section_%03d/%s" % (itemCount, filename)
                     item_title = "<a href='%s'>%s</a>" % (file_url, item_title)
+                    md_item = "- **[Archivo]** %s (`%s`)" % (item_title.split('>')[1].split('<')[0] if '<' in item_title else item_title, filename)
 
         elif modulename == "url":
             urlTree = etree.parse(os.path.join(source, 'activities', 'url_%s' % item, 'url.xml'))
             url = urlTree.find("url/externalurl").text
             print("Url id %s" % url)
             item_title = "<a href='%s' target='_blank'>%s</a>" % (url, item_title)
+            md_item = "- **[Enlace]** [%s](%s)" % (activities.find(item_xpath).find("title").text, url)
 
         elif modulename == "page":
             page_title = activities.find(item_xpath).find("title").text
@@ -323,6 +353,7 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
 
             page_url = "./section_%03d/%s" % (itemCount, pageFilename)
             item_title = "<a href='%s'>%s</a>" % (page_url, page_title)
+            md_item = "- **[Página]** %s\n\n%s\n" % (page_title, strip_html(page_content or ''))
 
         elif modulename == "folder":
             folder_title = activities.find(item_xpath).find("title").text
@@ -336,6 +367,7 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
             files = etree.parse(os.path.join(source, 'files.xml'))
 
             folder_html = "<div><ul>"
+            md_folder_files = []
             for f in file_listing:
                 file_id = f.find("id").text
                 original_filename = files.find("file[@id='%s']/filename" % file_id).text
@@ -353,19 +385,25 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
 
                     file_url = "./section_%03d/%s" % (itemCount, filename)
                     folder_html += "<li><a href='%s'>%s</a></li>" % (file_url, original_filename)
+                    md_folder_files.append("  - `%s`" % original_filename)
 
             folder_html += "</ul></div>"
             item_title = "%s (folder)%s" % (folder_title, folder_html)
+            md_item = "- **[Carpeta]** %s\n%s" % (folder_title, "\n".join(md_folder_files))
 
         else:
             item_title += " (%s)" % modulename
+            md_item = "- %s (%s)" % (item_title, modulename)
 
         HTMLOutput += "<li>%s</li>" % item_title
+        if md_item:
+            MDOutput += md_item + "\n"
 
     logOutput = section_title + nl
     HTMLOutput += "</ul>"
 
     urlfile.write(HTMLOutput)
+    mdfile.write(MDOutput + "\n")
     logfile.write(logOutput)
     itemCount += 1
 
@@ -375,6 +413,8 @@ if itemCount == 0:
 
 logfile.write("Extracted sections = {0}".format(itemCount))
 urlfile.close()
+mdfile.close()
+print("Markdown generado: {0}".format(mdFileSpec))
 
 
 # #########################
@@ -428,7 +468,6 @@ for rsrc in root:
 print("Extracted files = {0}".format(itemCount))
 logfile.write("\nExtracted files = {0}\n".format(itemCount))
 
-urlfile.close()
 logfile.close()
 
 # sym link
