@@ -110,10 +110,14 @@ def add_unique_postfix(fn):
     return None
 
 
-def make_slugified_filename(filename):
-    path, name = os.path.split(filename)
+def make_slugified_filename(filename, max_basename=60):
+    """Slugify filename, capping basename length to avoid Windows MAX_PATH issues."""
+    path, _ = os.path.split(filename)
     name, ext = os.path.splitext(filename)
-    return os.path.join(path, "%s%s" % (slugify(str(name)), ext))
+    slug = slugify(str(name))
+    if len(slug) > max_basename:
+        slug = slug[:max_basename].rstrip('-')
+    return os.path.join(path, "%s%s" % (slug, ext))
 
 
 def unzip_mbz_file(mbz_filepath):
@@ -313,13 +317,19 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
                     contenthash = files.find("file[@id='%s']/contenthash" % file_id).text
 
                     destination = add_unique_postfix(os.path.join(section_file_dir, filename))
-                    file = os.path.join(source, "files", contenthash[:2], contenthash)
+                    src_file = os.path.join(source, "files", contenthash[:2], contenthash)
 
-                    shutil.copyfile(file, destination)
+                    try:
+                        shutil.copyfile(src_file, destination)
+                    except Exception as e:
+                        print("  WARNING: could not copy %s: %s" % (filename, e))
+                        continue
 
-                    file_url = "./section_%03d/%s" % (itemCount, filename)
+                    dest_basename = os.path.basename(destination)
+                    file_url = "./section_%03d/%s" % (itemCount, dest_basename)
+                    orig_title = item_title
                     item_title = "<a href='%s'>%s</a>" % (file_url, item_title)
-                    md_item = "- **[Archivo]** %s (`%s`)" % (item_title.split('>')[1].split('<')[0] if '<' in item_title else item_title, filename)
+                    md_item = "- **[Archivo]** %s (`%s`)" % (orig_title, dest_basename)
 
         elif modulename == "url":
             urlTree = etree.parse(os.path.join(source, 'activities', 'url_%s' % item, 'url.xml'))
@@ -333,27 +343,29 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
             page_xml_file = activities.find(item_xpath).find("directory").text
 
             page_tree = etree.parse(os.path.join(source, page_xml_file, 'page.xml'))
-            page_content = page_tree.find("page/content").text
+            page_content = page_tree.find("page/content").text or ''
 
             if not os.path.exists(section_file_dir):
                 os.makedirs(section_file_dir)
 
-            page_title = page_title.replace("/", "-")
-            pageFilename = make_slugified_filename("%s.html" % str(page_title))
-            pageFilePath = os.path.join(section_file_dir, pageFilename)
-            pageFilePath = add_unique_postfix(pageFilePath)
+            page_title_safe = page_title.replace("/", "-").replace(":", "-")
+            pageFilename = make_slugified_filename("%s.html" % str(page_title_safe))
+            pageFilePath = add_unique_postfix(os.path.join(section_file_dir, pageFilename))
+            # Use the actual saved filename in the URL (handles conflicts)
+            pageFilename = os.path.basename(pageFilePath)
 
-            pagefile = open(pageFilePath, "w", encoding="utf-8")
-            if pagefile.mode == 'w':
-                pagefile.write("<html>%s<body><blockquote>" % html_header)
-                pagefile.write("<h2>%s (%s)</h2>" % (fullname, shortname))
-                pagefile.write("<h1>%s</h1>" % page_title)
-                pagefile.write(page_content)
-                pagefile.close()
+            try:
+                with open(pageFilePath, "w", encoding="utf-8") as pagefile:
+                    pagefile.write("<html>%s<body><blockquote>" % html_header)
+                    pagefile.write("<h2>%s (%s)</h2>" % (fullname, shortname))
+                    pagefile.write("<h1>%s</h1>" % page_title)
+                    pagefile.write(page_content)
+            except Exception as e:
+                print("  WARNING: could not write page %s: %s" % (page_title, e))
 
             page_url = "./section_%03d/%s" % (itemCount, pageFilename)
             item_title = "<a href='%s'>%s</a>" % (page_url, page_title)
-            md_item = "- **[Página]** %s\n\n%s\n" % (page_title, strip_html(page_content or ''))
+            md_item = "- **[Página]** %s\n\n%s\n" % (page_title, strip_html(page_content))
 
         elif modulename == "folder":
             folder_title = activities.find(item_xpath).find("title").text
@@ -379,11 +391,16 @@ for s in backupTreeRoot.findall("./information/contents/sections")[0].findall("s
                     contenthash = files.find("file[@id='%s']/contenthash" % file_id).text
 
                     destination = add_unique_postfix(os.path.join(section_file_dir, filename))
-                    file = os.path.join(source, "files", contenthash[:2], contenthash)
+                    src_file = os.path.join(source, "files", contenthash[:2], contenthash)
 
-                    shutil.copyfile(file, destination)
+                    try:
+                        shutil.copyfile(src_file, destination)
+                    except Exception as e:
+                        print("  WARNING: could not copy %s: %s" % (original_filename, e))
+                        continue
 
-                    file_url = "./section_%03d/%s" % (itemCount, filename)
+                    dest_basename = os.path.basename(destination)
+                    file_url = "./section_%03d/%s" % (itemCount, dest_basename)
                     folder_html += "<li><a href='%s'>%s</a></li>" % (file_url, original_filename)
                     md_folder_files.append("  - `%s`" % original_filename)
 
