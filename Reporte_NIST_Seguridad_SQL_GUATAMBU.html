@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe de Seguridad SQL Server — GUATAMBU | NIST SP 800-53</title>
+<style>
+  :root {
+    --critico: #c0392b; --critico-bg: #fdecea;
+    --alto:    #d35400; --alto-bg:    #fef3e2;
+    --medio:   #f39c12; --medio-bg:   #fefbe4;
+    --bajo:    #2980b9; --bajo-bg:    #eaf4fb;
+    --ok:      #27ae60; --ok-bg:      #eafbf0;
+    --nist:    #6c3483; --nist-bg:    #f5eef8;
+    --border:  #dee2e6;
+    --text:    #212529;
+    --gray:    #6c757d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: var(--text); background: #f8f9fa; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  /* ── Portada ── */
+  .cover { background: #1a1a2e; color: #fff; border-radius: 10px; padding: 40px 48px; margin-bottom: 28px; }
+  .cover h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .cover .sub { font-size: 15px; color: #adb5bd; margin-bottom: 20px; }
+  .cover-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 20px; }
+  .cover-item { background: rgba(255,255,255,.08); border-radius: 8px; padding: 12px 16px; }
+  .cover-item .label { font-size: 11px; color: #adb5bd; text-transform: uppercase; letter-spacing: .5px; }
+  .cover-item .val   { font-size: 14px; font-weight: 600; margin-top: 3px; }
+
+  /* ── Resumen ejecutivo ── */
+  .exec-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+  .exec-card { background: #fff; border-radius: 8px; border-left: 5px solid var(--border);
+               padding: 16px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .exec-card.critico { border-color: var(--critico); }
+  .exec-card.alto    { border-color: var(--alto); }
+  .exec-card.medio   { border-color: var(--medio); }
+  .exec-card.bajo    { border-color: var(--bajo); }
+  .exec-card .num  { font-size: 32px; font-weight: 700; line-height: 1; }
+  .exec-card .desc { font-size: 12px; color: var(--gray); margin-top: 4px; }
+  .exec-card.critico .num { color: var(--critico); }
+  .exec-card.alto    .num { color: var(--alto); }
+  .exec-card.medio   .num { color: var(--medio); }
+  .exec-card.bajo    .num { color: var(--bajo); }
+
+  /* ── Secciones ── */
+  .section { background: #fff; border-radius: 8px; padding: 22px 24px;
+             box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: 20px; }
+  .section h2 { font-size: 16px; font-weight: 700; border-bottom: 2px solid var(--border);
+                padding-bottom: 10px; margin-bottom: 16px; }
+  .section h3 { font-size: 14px; font-weight: 600; margin: 18px 0 10px; color: #343a40; }
+
+  /* ── Badges ── */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px;
+           font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .badge.critico { background: var(--critico-bg); color: var(--critico); }
+  .badge.alto    { background: var(--alto-bg);    color: var(--alto); }
+  .badge.medio   { background: var(--medio-bg);   color: var(--medio); }
+  .badge.bajo    { background: var(--bajo-bg);     color: var(--bajo); }
+  .badge.nist    { background: var(--nist-bg);     color: var(--nist); font-size: 10px; font-weight: 600; }
+  .badge.ok      { background: var(--ok-bg);       color: var(--ok); }
+
+  /* ── Tablas ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f1f3f5; text-align: left; padding: 8px 10px;
+       font-weight: 600; border-bottom: 2px solid var(--border); }
+  td { padding: 7px 10px; border-bottom: 1px solid #f1f3f5; vertical-align: top; }
+  tr:hover td { background: #fafbfc; }
+  .mono { font-family: 'Courier New', monospace; font-size: 12px; }
+
+  /* ── Hallazgo box ── */
+  .finding { border-radius: 6px; padding: 14px 16px; margin-bottom: 12px; border-left: 5px solid; }
+  .finding.critico { background: var(--critico-bg); border-color: var(--critico); }
+  .finding.alto    { background: var(--alto-bg);    border-color: var(--alto); }
+  .finding.medio   { background: var(--medio-bg);   border-color: var(--medio); }
+  .finding .ftitle { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .finding .fdesc  { font-size: 12px; color: #495057; line-height: 1.5; }
+  .finding .fnist  { margin-top: 6px; }
+
+  /* ── NIST mapping table ── */
+  .nist-table th { background: var(--nist-bg); }
+  .control-id { font-family: monospace; font-weight: 700; color: var(--nist); }
+
+  /* ── Score bar ── */
+  .score-bar { display: flex; align-items: center; gap: 8px; }
+  .bar-track { flex: 1; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 4px; }
+  .bar-fill.c100 { width:100%; background: var(--critico); }
+  .bar-fill.c95  { width:95%;  background: var(--critico); }
+  .bar-fill.c85  { width:85%;  background: var(--alto); }
+  .bar-fill.c75  { width:75%;  background: var(--alto); }
+  .bar-fill.c70  { width:70%;  background: var(--medio); }
+  .bar-fill.c60  { width:60%;  background: var(--medio); }
+  .bar-fill.c30  { width:30%;  background: var(--bajo); }
+  .bar-fill.c20  { width:20%;  background: var(--bajo); }
+
+  /* ── Recomendaciones ── */
+  .rec { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f1f3f5; }
+  .rec:last-child { border-bottom: none; }
+  .rec-num { background: #1a1a2e; color: #fff; border-radius: 50%; width: 24px; height: 24px;
+             display: flex; align-items: center; justify-content: center;
+             font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .rec-body .rt { font-weight: 600; font-size: 13px; }
+  .rec-body .rd { font-size: 12px; color: #495057; margin-top: 3px; }
+
+  /* ── Alerta box ── */
+  .alert { border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; }
+  .alert.danger  { background: var(--critico-bg); border: 1px solid #f5c6cb; }
+  .alert.warning { background: var(--alto-bg);    border: 1px solid #ffd8a8; }
+  .alert .at { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
+  .alert .ad { font-size: 12px; }
+
+  /* ── SQL code block ── */
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 14px 16px; border-radius: 6px;
+        font-size: 12px; overflow-x: auto; line-height: 1.5; margin: 8px 0; }
+  .kw { color: #569cd6; }
+  .cm { color: #6a9955; }
+  .st { color: #ce9178; }
+  .fn { color: #dcdcaa; }
+
+  /* ── Footer ── */
+  footer { text-align: center; color: var(--gray); font-size: 11px; margin-top: 32px; padding-top: 16px;
+           border-top: 1px solid var(--border); }
+  @media print {
+    body { background: #fff; }
+    .page { padding: 12px; }
+    .cover { background: #1a1a2e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ══════════════════ PORTADA ══════════════════ -->
+<div class="cover">
+  <h1>Informe de Seguridad — Servidor GUATAMBU</h1>
+  <div class="sub">Auditoría SQL Server · Mapeo NIST SP 800-53 Rev. 5 · Corte Suprema de Justicia — Paraguay (DCPI)</div>
+  <div class="cover-grid">
+    <div class="cover-item">
+      <div class="label">Servidor</div>
+      <div class="val">172.30.8.30 — GUATAMBU</div>
+    </div>
+    <div class="cover-item">
+      <div class="label">Host SQL</div>
+      <div class="val">WIN-RMGLHEE42QQ</div>
+    </div>
+    <div class="cover-item">
+      <div class="label">Fecha de auditoría</div>
+      <div class="val">07/04/2026</div>
+    </div>
+    <div class="cover-item">
+      <div class="label">Batch ID</div>
+      <div class="val" style="font-size:11px;font-family:monospace">4CE85B97-47AF-4A6F-A68F-EA9455925DA9</div>
+    </div>
+    <div class="cover-item">
+      <div class="label">Bases de datos auditadas</div>
+      <div class="val">10 de 10 — 100%</div>
+    </div>
+    <div class="cover-item">
+      <div class="label">Unidad auditora</div>
+      <div class="val">DCPI — División Ciberseguridad</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ RESUMEN EJECUTIVO ══════════════════ -->
+<div class="exec-grid">
+  <div class="exec-card critico">
+    <div class="num">17</div>
+    <div class="desc">Hallazgos CRÍTICOS</div>
+  </div>
+  <div class="exec-card alto">
+    <div class="num">3</div>
+    <div class="desc">Hallazgos ALTOS</div>
+  </div>
+  <div class="exec-card medio">
+    <div class="num">9</div>
+    <div class="desc">Hallazgos MEDIOS</div>
+  </div>
+  <div class="exec-card bajo">
+    <div class="num">8</div>
+    <div class="desc">Hallazgos BAJOS</div>
+  </div>
+</div>
+
+<!-- ══════════════════ SECCIÓN 1: CONFIGURACIÓN DEL SERVIDOR ══════════════════ -->
+<div class="section">
+  <h2>1. Configuración Peligrosa del Servidor</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:14px">
+    Opciones de configuración del servidor SQL detectadas como activas que expanden la superficie de ataque.
+    Fuente: <strong>ServerConfigAudit</strong>.
+  </p>
+
+  <div class="finding critico">
+    <div class="ftitle">🔴 xp_cmdshell = 1 (HABILITADO)</div>
+    <div class="fdesc">
+      Permite ejecutar comandos arbitrarios del sistema operativo Windows directamente desde T-SQL.
+      Cualquier usuario con permisos EXECUTE sobre xp_cmdshell puede tomar control total del servidor.
+      Vector de escalada de privilegios máxima — combinado con los db_owner detectados, el riesgo es inmediato.
+    </div>
+    <div class="fnist">
+      <span class="badge nist">CM-6: Configuration Settings</span>
+      <span class="badge nist">CM-7: Least Functionality</span>
+      <span class="badge nist">AC-3: Access Enforcement</span>
+    </div>
+  </div>
+
+  <div class="finding critico">
+    <div class="ftitle">🔴 Cuenta SA habilitada</div>
+    <div class="fdesc">
+      La cuenta "sa" (System Administrator) está activa. Es el objetivo primario de ataques de fuerza bruta
+      automatizados. Tiene privilegios irrestrictos sobre toda la instancia SQL y no puede ser auditada
+      con granularidad. Fue creada en 2003 (hace 23 años) y no tiene expiración de contraseña.
+    </div>
+    <div class="fnist">
+      <span class="badge nist">AC-2: Account Management</span>
+      <span class="badge nist">IA-5: Authenticator Mgmt</span>
+      <span class="badge nist">IA-4: Identifier Management</span>
+    </div>
+  </div>
+
+  <div class="finding alto">
+    <div class="ftitle">🟠 CLR Enabled = 1 (HABILITADO)</div>
+    <div class="fdesc">
+      Permite cargar ensamblados .NET externos dentro del proceso SQL Server. Un atacante con acceso
+      suficiente puede subir una librería maliciosa compilada para ejecutar código arbitrario con los
+      privilegios del servicio SQL Server.
+    </div>
+    <div class="fnist">
+      <span class="badge nist">CM-7: Least Functionality</span>
+      <span class="badge nist">SI-3: Malicious Code Protection</span>
+    </div>
+  </div>
+
+  <div class="finding alto">
+    <div class="ftitle">🟠 Remote Access = 1 (HABILITADO)</div>
+    <div class="fdesc">
+      Habilita conexiones remotas server-to-server (linked servers RPC). Amplía la superficie de ataque
+      y puede ser utilizada para movimiento lateral dentro de la red interna de la CSJ.
+    </div>
+    <div class="fnist">
+      <span class="badge nist">AC-17: Remote Access</span>
+      <span class="badge nist">SC-7: Boundary Protection</span>
+    </div>
+  </div>
+
+  <table style="margin-top:14px">
+    <thead>
+      <tr>
+        <th>Configuración</th>
+        <th>Valor Actual</th>
+        <th>Valor Recomendado</th>
+        <th>Riesgo</th>
+        <th>Controles NIST</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">xp_cmdshell</td>
+        <td><strong style="color:var(--critico)">1 (ON)</strong></td>
+        <td>0 (OFF)</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td><span class="badge nist">CM-6</span> <span class="badge nist">CM-7</span></td>
+      </tr>
+      <tr>
+        <td class="mono">Cuenta SA</td>
+        <td><strong style="color:var(--critico)">HABILITADA</strong></td>
+        <td>DESHABILITADA</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td><span class="badge nist">AC-2</span> <span class="badge nist">IA-5</span></td>
+      </tr>
+      <tr>
+        <td class="mono">clr enabled</td>
+        <td><strong style="color:var(--alto)">1 (ON)</strong></td>
+        <td>0 (OFF)</td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td><span class="badge nist">CM-7</span></td>
+      </tr>
+      <tr>
+        <td class="mono">remote access</td>
+        <td><strong style="color:var(--alto)">1 (ON)</strong></td>
+        <td>0 (OFF)</td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td><span class="badge nist">AC-17</span> <span class="badge nist">SC-7</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════ SECCIÓN 2: LOGINS DEL SERVIDOR ══════════════════ -->
+<div class="section">
+  <h2>2. Seguridad de Logins del Servidor</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:14px">
+    Análisis de los 29 logins detectados en la instancia. Fuente: <strong>LoginSecurityAudit</strong>.
+  </p>
+
+  <h3>2.1 Logins de alto riesgo</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Login</th>
+        <th>Tipo</th>
+        <th>Score</th>
+        <th>Riesgo</th>
+        <th>Problemas detectados</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">sa</td>
+        <td>SQL</td>
+        <td>
+          <div class="score-bar"><div class="bar-track"><div class="bar-fill c100"></div></div><span>100</span></div>
+        </td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td>SA habilitada · Sin expiración · Cuenta de 8.400 días (23 años)</td>
+      </tr>
+      <tr>
+        <td class="mono">c_morinigo</td>
+        <td>SQL</td>
+        <td>
+          <div class="score-bar"><div class="bar-track"><div class="bar-fill c85"></div></div><span>85</span></div>
+        </td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td>Sin política de contraseñas · Sin expiración · DESHABILITADA · Cuenta antigua</td>
+      </tr>
+      <tr>
+        <td class="mono">rrijo</td>
+        <td>SQL</td>
+        <td>
+          <div class="score-bar"><div class="bar-track"><div class="bar-fill c85"></div></div><span>85</span></div>
+        </td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td>Sin política de contraseñas · Sin expiración · DESHABILITADA · Cuenta antigua</td>
+      </tr>
+      <tr>
+        <td class="mono">WIN-RMGLHEE42QQ\Administrador</td>
+        <td>Windows</td>
+        <td>
+          <div class="score-bar"><div class="bar-track"><div class="bar-fill c60"></div></div><span>60</span></div>
+        </td>
+        <td><span class="badge bajo">BAJO</span></td>
+        <td>Sin política de contraseñas · Sin expiración · Cuenta antigua</td>
+      </tr>
+      <tr>
+        <td class="mono">cl_figueredo</td>
+        <td>SQL</td>
+        <td>
+          <div class="score-bar"><div class="bar-track"><div class="bar-fill c70"></div></div><span>70</span></div>
+        </td>
+        <td><span class="badge medio">MEDIO</span></td>
+        <td>Sin expiración de contraseña</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2.2 Privilegios excesivos a nivel de servidor (sysadmin)</h3>
+  <div class="alert danger">
+    <div class="at">⚠ 5 cuentas con rol sysadmin detectadas (desde Hoja_General)</div>
+    <div class="ad">El rol sysadmin otorga control total sobre la instancia SQL Server completa, todas las bases de datos,
+    configuraciones y objetos del sistema.</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Login</th><th>Tipo</th><th>Riesgo</th><th>Acción recomendada</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">sa</td><td>SQL built-in</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td>Deshabilitar; renombrar si motor lo permite; cambiar contraseña a valor complejo</td>
+      </tr>
+      <tr>
+        <td class="mono">m_peralta</td><td>SQL personal</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td>Revocar sysadmin; asignar rol mínimo según función</td>
+      </tr>
+      <tr>
+        <td class="mono">s_villa</td><td>SQL personal</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td>Revocar sysadmin; asignar rol mínimo según función</td>
+      </tr>
+      <tr>
+        <td class="mono">m_silvera</td><td>SQL personal</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td>Revocar sysadmin; asignar rol mínimo según función</td>
+      </tr>
+      <tr>
+        <td class="mono">CSJ\appm1</td><td>Windows dominio</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td>Verificar si es cuenta de servicio; si es así, crear login de servicio dedicado con mínimos permisos</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2.3 Logins con problemas de contraseña (score medio)</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">
+    Los siguientes 11 logins carecen de expiración de contraseña, aumentando el riesgo de uso de credenciales comprometidas no detectadas.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Login</th><th>Score</th><th>BD por defecto</th><th>Problema principal</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="mono">user_resolucioncon</td><td>70</td><td>consulres</td><td>Sin expiración · Cuenta antigua (1.924 días)</td></tr>
+      <tr><td class="mono">user_resolucioninterna</td><td>70</td><td>consulres</td><td>Sin expiración · Cuenta antigua (1.924 días)</td></tr>
+      <tr><td class="mono">User_cba</td><td>70</td><td>JURDB</td><td>Sin expiración · Cuenta antigua (1.924 días)</td></tr>
+      <tr><td class="mono">UserIBERUS</td><td>70</td><td>JURDB</td><td>Sin expiración · Cuenta antigua (1.924 días)</td></tr>
+      <tr><td class="mono">conexion_lederes</td><td>70</td><td>lederes</td><td>Sin expiración · Cuenta antigua (1.924 días)</td></tr>
+      <tr><td class="mono">secisys</td><td>70</td><td>secisys_csj</td><td>Sin expiración · Cuenta antigua (1.924 días)</td></tr>
+      <tr><td class="mono">usersigjur</td><td>70</td><td>sig_pub</td><td>Sin expiración · Cuenta antigua (1.924 días)</td></tr>
+      <tr><td class="mono">resolucion</td><td>70</td><td>Consulres</td><td>Sin expiración · Cuenta antigua (762 días)</td></tr>
+      <tr><td class="mono">cl_figueredo</td><td>70</td><td>master</td><td>Sin expiración (cuenta reciente)</td></tr>
+      <tr><td class="mono">gs_martinez</td><td>60</td><td>Consulres</td><td>DESHABILITADA · Cuenta antigua</td></tr>
+      <tr><td class="mono">CSJ\appm1</td><td>60</td><td>master</td><td>Sin política · Sin expiración (Windows)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════ SECCIÓN 3: HALLAZGOS POR BASE DE DATOS ══════════════════ -->
+<div class="section">
+  <h2>3. Hallazgos por Base de Datos</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:14px">
+    Resumen de los 37 hallazgos registrados en AuditResults, organizados por base de datos.
+  </p>
+
+  <!-- Tabla resumen de BDs -->
+  <table style="margin-bottom:20px">
+    <thead>
+      <tr>
+        <th>Base de Datos</th>
+        <th>Duración (seg)</th>
+        <th>Total Hallazgos</th>
+        <th>Críticos</th>
+        <th>Altos</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono"><strong>Consulres</strong></td><td>0</td>
+        <td><strong>14</strong></td><td style="color:var(--critico)"><strong>7</strong></td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">JURDB</td><td>0</td>
+        <td><strong>6</strong></td><td style="color:var(--critico)"><strong>2</strong></td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">Lederes</td><td>0</td>
+        <td><strong>4</strong></td><td style="color:var(--critico)"><strong>3</strong></td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">Sig_pub_reg</td><td>0</td>
+        <td><strong>3</strong></td><td style="color:var(--critico)"><strong>1</strong></td>
+        <td style="color:var(--alto)"><strong>1</strong></td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">secisys_csj</td><td>1</td>
+        <td><strong>2</strong></td><td style="color:var(--critico)"><strong>1</strong></td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">Sig_pub</td><td>0</td>
+        <td><strong>2</strong></td><td style="color:var(--critico)"><strong>1</strong></td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">Sig_pub_cov</td><td>0</td>
+        <td><strong>2</strong></td><td style="color:var(--critico)"><strong>1</strong></td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">ContenedorDLL</td><td>0</td>
+        <td><strong>1</strong></td><td style="color:var(--critico)"><strong>1</strong></td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">MOODLEDB</td><td>0</td>
+        <td><strong>1</strong></td><td>0</td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+      <tr>
+        <td class="mono">Uep_proyectos</td><td>0</td>
+        <td><strong>1</strong></td><td>0</td>
+        <td>0</td><td><span class="badge ok">COMPLETADO</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Consulres -->
+  <h3>3.1 Consulres — 7 usuarios con db_owner (CRÍTICO)</h3>
+  <div class="alert danger">
+    <div class="at">7 cuentas personales con control total sobre la base de datos Consulres</div>
+    <div class="ad">db_owner otorga todos los permisos dentro de la BD: DROP TABLE, BACKUP, ALTER ANY USER, etc.</div>
+  </div>
+  <table>
+    <thead><tr><th>Usuario</th><th>Login</th><th>Huérfano</th><th>Creado</th><th>Score</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">s_insfran</td><td class="mono">s_insfran</td><td>No</td><td>2020-12-30</td><td><span class="badge critico">95</span></td></tr>
+      <tr><td class="mono">j_sandoval</td><td class="mono">j_sandoval</td><td>No</td><td>2021-08-09</td><td><span class="badge critico">95</span></td></tr>
+      <tr><td class="mono">m_peralta</td><td class="mono">m_peralta</td><td>No</td><td>2021-08-11</td><td><span class="badge critico">95</span></td></tr>
+      <tr><td class="mono">s_villa</td><td class="mono">s_villa</td><td>No</td><td>2022-05-09</td><td><span class="badge critico">95</span></td></tr>
+      <tr><td class="mono">g_rodriguez</td><td class="mono">g_rodriguez</td><td>No</td><td>2024-05-31</td><td><span class="badge critico">95</span></td></tr>
+      <tr><td class="mono">m_silvera</td><td class="mono">m_silvera</td><td>No</td><td>2024-09-03</td><td><span class="badge critico">95</span></td></tr>
+      <tr><td class="mono">d_lopez</td><td class="mono">d_lopez</td><td>No</td><td>2026-04-06</td><td><span class="badge critico">95</span></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;margin-top:8px;color:var(--gray)">
+    ⚠ <strong>d_lopez</strong> fue creado el 2026-04-06, un día antes de la auditoría. Requiere investigación inmediata.
+  </p>
+
+  <!-- JURDB -->
+  <h3>3.2 JURDB — 2 db_owner + 4 roles menores</h3>
+  <table>
+    <thead><tr><th>Usuario</th><th>Rol</th><th>Riesgo</th><th>Nota</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">s_insfran</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td><td>También db_owner en Consulres y Lederes</td></tr>
+      <tr><td class="mono">m_peralta</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td><td>También db_owner en Consulres + sysadmin</td></tr>
+      <tr><td class="mono">User_cba</td><td>Grupo_JUR</td><td><span class="badge bajo">BAJO</span></td><td>Verificar necesidad</td></tr>
+      <tr><td class="mono">UserIBERUS</td><td>Grupo_WebService</td><td><span class="badge bajo">BAJO</span></td><td>Verificar necesidad</td></tr>
+      <tr><td class="mono">r_ruizdiaz</td><td>db_datareader</td><td><span class="badge bajo">BAJO</span></td><td>Validar acceso</td></tr>
+      <tr><td class="mono">g_martinez</td><td>db_backupoperator</td><td><span class="badge medio">MEDIO</span></td><td>Mismo usuario en 7 BDs — verificar necesidad</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Lederes -->
+  <h3>3.3 Lederes — 3 db_owner</h3>
+  <table>
+    <thead><tr><th>Usuario</th><th>Rol</th><th>Riesgo</th><th>Nota</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">rrijo</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td><td>Login DESHABILITADO pero usuario BD aún activo</td></tr>
+      <tr><td class="mono">conexion_lederes</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td><td>Cuenta de aplicación con privilegio excesivo</td></tr>
+      <tr><td class="mono">s_insfran</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td><td>Présente en 3 BDs como db_owner</td></tr>
+      <tr><td class="mono">g_martinez</td><td>db_backupoperator</td><td><span class="badge medio">MEDIO</span></td><td>Verificar necesidad</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Sig_pub* -->
+  <h3>3.4 Sig_pub / Sig_pub_cov / Sig_pub_reg — usersigjur como db_owner</h3>
+  <div class="alert warning">
+    <div class="at">El login de aplicación "usersigjur" tiene db_owner en las 3 BDs del sistema SIG público</div>
+    <div class="ad">Una cuenta de aplicación nunca debe tener db_owner. Si la aplicación es comprometida,
+    el atacante obtiene control total de las tres bases de datos.</div>
+  </div>
+  <table>
+    <thead><tr><th>Base de Datos</th><th>Usuario</th><th>Rol</th><th>Riesgo</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">Sig_pub</td><td class="mono">usersigjur</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td></tr>
+      <tr><td class="mono">Sig_pub_cov</td><td class="mono">usersigjur</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td></tr>
+      <tr><td class="mono">Sig_pub_reg</td><td class="mono">usersigjur</td><td>db_owner</td><td><span class="badge critico">CRÍTICO</span></td></tr>
+      <tr><td class="mono">Sig_pub_reg</td><td class="mono">UserSigPub</td><td>—</td><td><span class="badge alto">ALTO: HUÉRFANO</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- Usuarios huérfanos -->
+  <h3>3.5 Usuarios Huérfanos</h3>
+  <p style="font-size:12px;color:var(--gray);margin-bottom:8px">
+    Un usuario huérfano existe dentro de la BD pero su login fue eliminado del servidor.
+    No puede autenticarse, pero puede ser "re-vinculado" por un atacante con acceso sysadmin.
+  </p>
+  <table>
+    <thead><tr><th>Base de Datos</th><th>Usuario Huérfano</th><th>Riesgo</th><th>Acción recomendada</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">ContenedorDLL</td>
+        <td class="mono">D_Lopez</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+        <td>Tenía db_owner — ejecutar <code>DROP USER [D_Lopez]</code> y revocar db_owner primero</td>
+      </tr>
+      <tr>
+        <td class="mono">Sig_pub_reg</td>
+        <td class="mono">UserSigPub</td>
+        <td><span class="badge alto">ALTO</span></td>
+        <td>Ejecutar <code>DROP USER [UserSigPub]</code></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════ SECCIÓN 4: USUARIOS MULTI-BD ══════════════════ -->
+<div class="section">
+  <h2>4. Análisis de Usuarios con Presencia en Múltiples Bases de Datos</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:14px">
+    Usuarios identificados con acceso a múltiples bases de datos del servidor. Un único vector de
+    compromiso de estas cuentas puede afectar simultáneamente varias bases.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Usuario / Login</th>
+        <th>Bases de Datos con Acceso</th>
+        <th>Nivel máximo</th>
+        <th>Riesgo acumulado</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono"><strong>s_insfran</strong></td>
+        <td>Consulres, JURDB, Lederes</td>
+        <td>db_owner en las 3</td>
+        <td><span class="badge critico">CRÍTICO MÁXIMO</span></td>
+      </tr>
+      <tr>
+        <td class="mono"><strong>m_peralta</strong></td>
+        <td>Consulres, JURDB + sysadmin servidor</td>
+        <td>db_owner + sysadmin</td>
+        <td><span class="badge critico">CRÍTICO MÁXIMO</span></td>
+      </tr>
+      <tr>
+        <td class="mono"><strong>usersigjur</strong></td>
+        <td>Sig_pub, Sig_pub_cov, Sig_pub_reg</td>
+        <td>db_owner en las 3</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+      </tr>
+      <tr>
+        <td class="mono"><strong>g_martinez</strong></td>
+        <td>Consulres, JURDB, Lederes, MOODLEDB, secisys_csj, Sig_pub, Sig_pub_cov, Sig_pub_reg, Uep_proyectos</td>
+        <td>db_backupoperator</td>
+        <td><span class="badge medio">MEDIO — verificar necesidad</span></td>
+      </tr>
+      <tr>
+        <td class="mono"><strong>d_lopez</strong></td>
+        <td>Consulres (activo) + ContenedorDLL (huérfano)</td>
+        <td>db_owner</td>
+        <td><span class="badge critico">CRÍTICO — creado 1 día antes de la auditoría</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════ SECCIÓN 5: MAPEO NIST SP 800-53 ══════════════════ -->
+<div class="section">
+  <h2>5. Mapeo con NIST SP 800-53 Rev. 5</h2>
+  <p style="font-size:13px;color:var(--gray);margin-bottom:16px">
+    Cada hallazgo se clasifica según los controles de seguridad del NIST SP 800-53 Rev. 5 aplicables.
+    Los controles marcados como <strong style="color:var(--critico)">incumplidos</strong> requieren remediación
+    prioritaria antes de una eventual certificación o auditoría formal.
+  </p>
+
+  <table class="nist-table">
+    <thead>
+      <tr>
+        <th>Control ID</th>
+        <th>Familia / Nombre</th>
+        <th>Hallazgos asociados</th>
+        <th>Estado</th>
+        <th>Prioridad</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="control-id">AC-2</span></td>
+        <td>Access Control — Account Management</td>
+        <td>
+          SA habilitada · cuentas deshabilitadas con db_owner (rrijo, c_morinigo) ·
+          d_lopez creado 1 día antes de auditoría · 2 usuarios huérfanos
+        </td>
+        <td><span class="badge critico">INCUMPLIDO</span></td>
+        <td>P1 — Inmediata</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">AC-3</span></td>
+        <td>Access Control — Access Enforcement</td>
+        <td>
+          16 usuarios con db_owner en bases de datos de producción ·
+          5 cuentas con sysadmin en servidor
+        </td>
+        <td><span class="badge critico">INCUMPLIDO</span></td>
+        <td>P1 — Inmediata</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">AC-6</span></td>
+        <td>Access Control — Least Privilege</td>
+        <td>
+          Ninguna cuenta debería tener db_owner si no gestiona la BD ·
+          Cuentas de aplicación (usersigjur, conexion_lederes) con privilegio máximo
+        </td>
+        <td><span class="badge critico">INCUMPLIDO</span></td>
+        <td>P1 — Inmediata</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">AC-17</span></td>
+        <td>Access Control — Remote Access</td>
+        <td>remote access = 1 habilitado sin justificación documentada</td>
+        <td><span class="badge alto">PARCIAL</span></td>
+        <td>P2 — 30 días</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">IA-4</span></td>
+        <td>Identification &amp; Auth — Identifier Management</td>
+        <td>
+          Cuenta SA es un identificador genérico compartido ·
+          Usuarios huérfanos (identificadores sin propietario activo)
+        </td>
+        <td><span class="badge critico">INCUMPLIDO</span></td>
+        <td>P1 — Inmediata</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">IA-5</span></td>
+        <td>Identification &amp; Auth — Authenticator Management</td>
+        <td>
+          11 logins sin expiración de contraseña ·
+          3 logins sin política de contraseñas (pueden tener pwd vacía) ·
+          SA con contraseña nunca expirada desde 2003
+        </td>
+        <td><span class="badge critico">INCUMPLIDO</span></td>
+        <td>P1 — Inmediata</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">CM-6</span></td>
+        <td>Config. Mgmt — Configuration Settings</td>
+        <td>
+          xp_cmdshell = 1 · CLR enabled = 1 · remote access = 1 ·
+          Desviación de baseline CIS SQL Server
+        </td>
+        <td><span class="badge critico">INCUMPLIDO</span></td>
+        <td>P1 — Inmediata</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">CM-7</span></td>
+        <td>Config. Mgmt — Least Functionality</td>
+        <td>
+          xp_cmdshell no es necesario para operación normal de la CSJ ·
+          CLR habilitado sin justificación documentada
+        </td>
+        <td><span class="badge critico">INCUMPLIDO</span></td>
+        <td>P1 — Inmediata</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">SC-7</span></td>
+        <td>System Comm. — Boundary Protection</td>
+        <td>remote access habilita RPC server-to-server sin control de frontera documentado</td>
+        <td><span class="badge alto">PARCIAL</span></td>
+        <td>P2 — 30 días</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">AU-9</span></td>
+        <td>Audit — Protection of Audit Information</td>
+        <td>
+          Con xp_cmdshell activo y usuarios sysadmin, los registros de auditoría
+          pueden ser borrados o alterados sin restricción
+        </td>
+        <td><span class="badge alto">EN RIESGO</span></td>
+        <td>P2 — 30 días</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">SI-3</span></td>
+        <td>System Integrity — Malicious Code Protection</td>
+        <td>CLR enabled permite cargar ensamblados .NET potencialmente maliciosos</td>
+        <td><span class="badge alto">EN RIESGO</span></td>
+        <td>P2 — 30 días</td>
+      </tr>
+      <tr>
+        <td><span class="control-id">PS-4</span></td>
+        <td>Personnel Security — Personnel Termination</td>
+        <td>
+          rrijo y c_morinigo tienen logins deshabilitados pero usuarios activos en BDs ·
+          D_Lopez es huérfano en ContenedorDLL con db_owner
+        </td>
+        <td><span class="badge medio">PARCIAL</span></td>
+        <td>P2 — 30 días</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════ SECCIÓN 6: PLAN DE REMEDIACIÓN ══════════════════ -->
+<div class="section">
+  <h2>6. Plan de Remediación Priorizado</h2>
+
+  <h3>FASE 1 — Acción Inmediata (P1): Dentro de 48 horas</h3>
+
+  <div class="rec">
+    <div class="rec-num">1</div>
+    <div class="rec-body">
+      <div class="rt">Deshabilitar xp_cmdshell</div>
+      <div class="rd">Es el riesgo individual más grave. Ejecutar en instancia GUATAMBU como sysadmin.</div>
+    </div>
+  </div>
+  <pre><span class="cm">-- Deshabilitar xp_cmdshell</span>
+<span class="kw">EXEC</span> sp_configure <span class="st">'show advanced options'</span>, 1; RECONFIGURE;
+<span class="kw">EXEC</span> sp_configure <span class="st">'xp_cmdshell'</span>, 0; RECONFIGURE;
+<span class="kw">EXEC</span> sp_configure <span class="st">'show advanced options'</span>, 0; RECONFIGURE;</pre>
+
+  <div class="rec">
+    <div class="rec-num">2</div>
+    <div class="rec-body">
+      <div class="rt">Deshabilitar CLR y Remote Access</div>
+      <div class="rd">Reducir superficie de ataque del servidor.</div>
+    </div>
+  </div>
+  <pre><span class="kw">EXEC</span> sp_configure <span class="st">'show advanced options'</span>, 1; RECONFIGURE;
+<span class="kw">EXEC</span> sp_configure <span class="st">'clr enabled'</span>, 0; RECONFIGURE;
+<span class="kw">EXEC</span> sp_configure <span class="st">'remote access'</span>, 0; RECONFIGURE;
+<span class="kw">EXEC</span> sp_configure <span class="st">'show advanced options'</span>, 0; RECONFIGURE;</pre>
+
+  <div class="rec">
+    <div class="rec-num">3</div>
+    <div class="rec-body">
+      <div class="rt">Deshabilitar y cambiar contraseña de la cuenta SA</div>
+      <div class="rd">Aplicar inmediatamente. La cuenta SA nunca debe estar activa en producción.</div>
+    </div>
+  </div>
+  <pre><span class="cm">-- Cambiar contraseña a valor complejo aleatorio primero, luego deshabilitar</span>
+<span class="kw">ALTER</span> LOGIN [sa] <span class="kw">WITH</span> PASSWORD = <span class="st">'&lt;contraseña_aleatoria_32_chars&gt;'</span>;
+<span class="kw">ALTER</span> LOGIN [sa] DISABLE;</pre>
+
+  <div class="rec">
+    <div class="rec-num">4</div>
+    <div class="rec-body">
+      <div class="rt">Investigar la cuenta d_lopez (creada 2026-04-06)</div>
+      <div class="rd">Cuenta creada 1 día antes de la auditoría con db_owner en Consulres. Posible acceso no autorizado. Revocar db_owner y revisar quién la creó.</div>
+    </div>
+  </div>
+  <pre><span class="cm">-- Auditar quién creó d_lopez y cuándo</span>
+<span class="kw">USE</span> Consulres;
+<span class="kw">SELECT</span> name, create_date, modify_date, default_schema_name
+<span class="kw">FROM</span> sys.database_principals <span class="kw">WHERE</span> name = <span class="st">'d_lopez'</span>;
+
+<span class="cm">-- Revocar db_owner inmediatamente</span>
+<span class="kw">EXEC</span> sp_droprolemember <span class="st">'db_owner'</span>, <span class="st">'d_lopez'</span>;</pre>
+
+  <div class="rec">
+    <div class="rec-num">5</div>
+    <div class="rec-body">
+      <div class="rt">Eliminar usuarios huérfanos</div>
+      <div class="rd">Ejecutar en las dos BDs afectadas.</div>
+    </div>
+  </div>
+  <pre><span class="cm">-- ContenedorDLL: revocar db_owner del usuario huérfano, luego eliminar</span>
+<span class="kw">USE</span> ContenedorDLL;
+<span class="kw">EXEC</span> sp_droprolemember <span class="st">'db_owner'</span>, <span class="st">'D_Lopez'</span>;
+<span class="kw">DROP USER</span> [D_Lopez];
+
+<span class="cm">-- Sig_pub_reg</span>
+<span class="kw">USE</span> Sig_pub_reg;
+<span class="kw">DROP USER</span> [UserSigPub];</pre>
+
+  <h3>FASE 2 — Acción de Corto Plazo (P2): Dentro de 30 días</h3>
+
+  <div class="rec">
+    <div class="rec-num">6</div>
+    <div class="rec-body">
+      <div class="rt">Revocar sysadmin de cuentas personales (m_peralta, s_villa, m_silvera, CSJ\appm1)</div>
+      <div class="rd">Consultar con DAI qué nivel de acceso realmente necesitan. Asignar roles mínimos.</div>
+    </div>
+  </div>
+  <pre><span class="cm">-- Ejemplo para m_peralta (repetir para cada login)</span>
+<span class="kw">ALTER</span> SERVER ROLE [sysadmin] <span class="kw">DROP</span> MEMBER [m_peralta];
+<span class="cm">-- Asignar rol específico si es DBA: dbcreator o securityadmin, nunca sysadmin</span></pre>
+
+  <div class="rec">
+    <div class="rec-num">7</div>
+    <div class="rec-body">
+      <div class="rt">Revocar db_owner de todos los usuarios de bases de datos de producción</div>
+      <div class="rd">
+        Reemplazar con <code>db_datareader</code> + <code>db_datawriter</code> para usuarios operativos.
+        Para cuentas de aplicación (usersigjur, conexion_lederes), otorgar solo los permisos que la
+        aplicación realmente usa.
+      </div>
+    </div>
+  </div>
+  <pre><span class="cm">-- Plantilla — repetir para cada BD y usuario</span>
+<span class="kw">USE</span> Consulres;
+<span class="kw">EXEC</span> sp_droprolemember <span class="st">'db_owner'</span>, <span class="st">'s_insfran'</span>;
+<span class="kw">EXEC</span> sp_addrolemember  <span class="st">'db_datareader'</span>, <span class="st">'s_insfran'</span>;
+<span class="cm">-- Agregar db_datawriter solo si el usuario necesita escribir</span></pre>
+
+  <div class="rec">
+    <div class="rec-num">8</div>
+    <div class="rec-body">
+      <div class="rt">Habilitar expiración de contraseñas en todos los logins SQL</div>
+      <div class="rd">11 logins carecen de expiración. Establecer período máximo de 90 días.</div>
+    </div>
+  </div>
+  <pre><span class="cm">-- Verificar logins sin expiración</span>
+<span class="kw">SELECT</span> name, is_expiration_checked, is_policy_checked
+<span class="kw">FROM</span> sys.sql_logins
+<span class="kw">WHERE</span> is_expiration_checked = 0 <span class="kw">AND</span> is_disabled = 0;
+
+<span class="cm">-- Habilitar expiración (ejemplo)</span>
+<span class="kw">ALTER</span> LOGIN [user_resolucioncon] <span class="kw">WITH</span> CHECK_EXPIRATION = <span class="kw">ON</span>, CHECK_POLICY = <span class="kw">ON</span>;</pre>
+
+  <div class="rec">
+    <div class="rec-num">9</div>
+    <div class="rec-body">
+      <div class="rt">Revisar y justificar acceso de g_martinez en 9 bases de datos</div>
+      <div class="rd">
+        El usuario g_martinez tiene db_backupoperator en 9 BDs. Si necesita hacer backups centralizados,
+        documentar la justificación. Si no, revocar acceso en las BDs no relacionadas con su función.
+      </div>
+    </div>
+  </div>
+
+  <h3>FASE 3 — Mejora Continua (P3): Dentro de 90 días</h3>
+
+  <div class="rec">
+    <div class="rec-num">10</div>
+    <div class="rec-body">
+      <div class="rt">Implementar política formal de gestión de cuentas</div>
+      <div class="rd">
+        Definir proceso: quién aprueba creación de logins, revisión semestral de accesos,
+        proceso de desvinculación de personal que incluya revocación SQL inmediata.
+        Alinear con NIST AC-2 (Account Management Policy).
+      </div>
+    </div>
+  </div>
+
+  <div class="rec">
+    <div class="rec-num">11</div>
+    <div class="rec-body">
+      <div class="rt">Configurar SQL Server Audit para eventos críticos</div>
+      <div class="rd">
+        Auditar: LOGIN_FAILED, ADD_MEMBER_TO_DB_ROLE, ALTER_SERVER_CONFIGURATION,
+        EXEC_xp_cmdshell. Enviar logs a sistema centralizado (SIEM).
+        Alinear con NIST AU-2, AU-9.
+      </div>
+    </div>
+  </div>
+
+  <div class="rec">
+    <div class="rec-num">12</div>
+    <div class="rec-body">
+      <div class="rt">Auditar otras instancias SQL en la red CSJ</div>
+      <div class="rd">
+        Aplicar el mismo script de auditoría a todos los servidores SQL de la CSJ.
+        Los patrones encontrados en GUATAMBU (db_owner masivo, SA activa, xp_cmdshell)
+        probablemente se repiten en otros servidores.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ SECCIÓN 7: RESUMEN EJECUTIVO ══════════════════ -->
+<div class="section">
+  <h2>7. Conclusiones para la Dirección</h2>
+
+  <div class="alert danger">
+    <div class="at">Estado de seguridad: CRÍTICO — Intervención inmediata requerida</div>
+    <div class="ad">
+      El servidor GUATAMBU presenta múltiples vulnerabilidades críticas que, en combinación,
+      representan un riesgo de compromiso total de la instancia SQL Server y los datos almacenados.
+    </div>
+  </div>
+
+  <table style="margin-top:12px">
+    <thead><tr><th>Indicador</th><th>Valor</th><th>Evaluación</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Configuraciones peligrosas activas</td>
+        <td>4 de 4 verificadas</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+      </tr>
+      <tr>
+        <td>Cuenta SA activa</td>
+        <td>Sí — score 100/100</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+      </tr>
+      <tr>
+        <td>Cuentas con sysadmin (excl. SA)</td>
+        <td>4 cuentas personales + 1 Windows</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+      </tr>
+      <tr>
+        <td>Usuarios con db_owner en BDs producción</td>
+        <td>16 asignaciones en 8 BDs</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+      </tr>
+      <tr>
+        <td>Usuarios huérfanos con permisos</td>
+        <td>2 (ContenedorDLL, Sig_pub_reg)</td>
+        <td><span class="badge alto">ALTO</span></td>
+      </tr>
+      <tr>
+        <td>Logins sin expiración de contraseña</td>
+        <td>11 de 29 (38%)</td>
+        <td><span class="badge medio">MEDIO</span></td>
+      </tr>
+      <tr>
+        <td>Controles NIST SP 800-53 incumplidos</td>
+        <td>AC-2, AC-3, AC-6, IA-4, IA-5, CM-6, CM-7</td>
+        <td><span class="badge critico">7 controles críticos</span></td>
+      </tr>
+      <tr>
+        <td>BDs con al menos 1 hallazgo crítico</td>
+        <td>8 de 10 (80%)</td>
+        <td><span class="badge critico">CRÍTICO</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:16px;padding:14px;background:#f8f9fa;border-radius:6px;border:1px solid var(--border);font-size:13px;line-height:1.6">
+    <strong>Mensaje clave para la Dirección:</strong><br>
+    La combinación de <code>xp_cmdshell</code> habilitado + múltiples usuarios con <code>sysadmin</code> + cuenta SA activa
+    significa que un único evento de compromiso de cualquiera de estas cuentas daría al atacante
+    <strong>control total del sistema operativo Windows</strong> del servidor GUATAMBU,
+    no solo de las bases de datos. Las configuraciones detectadas (xp_cmdshell, CLR) no son necesarias
+    para la operación ordinaria de los sistemas de la CSJ y deben desactivarse sin excepción.
+    La remediación de la Fase 1 (ítems 1-5) no requiere downtime prolongado y puede ejecutarse
+    en una ventana de mantenimiento de 2 horas.
+  </div>
+</div>
+
+<footer>
+  Auditoría de Seguridad SQL Server — Servidor GUATAMBU (172.30.8.30) · WIN-RMGLHEE42QQ<br>
+  Generado por DCPI — División de Ciberseguridad y Protección de la Información · CSJ Paraguay<br>
+  Batch ID: 4CE85B97-47AF-4A6F-A68F-EA9455925DA9 · Fecha de auditoría: 07/04/2026<br>
+  Marco de referencia: NIST SP 800-53 Rev. 5
+</footer>
+
+</div>
+</body>
+</html>
